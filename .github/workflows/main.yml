@@ -1,4 +1,4 @@
-name: Update Index Page
+name: Collaborative Workflow
 
 on:
   push:
@@ -9,20 +9,46 @@ permissions:
   contents: write
 
 jobs:
-  commit_changes:
+  update_html_and_readme:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      # Step 1: Checkout the repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Modify index.html
-        run: echo "<h1>Welcome to My Website</h1>" > index.html
-
-      - name: Commit changes
+      # Step 2: Detect the actor and update index.html
+      - name: Update index.html
+        env:
+          ACTOR: ${{ github.actor }}
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html
-          git diff --cached --quiet || git commit -m "Auto-update index.html"
-          git push
+          if [ "$ACTOR" = "maebbau" ]; then
+            ROLE="Team Leader"
+          else
+            ROLE="Team Member"
+          fi
+
+          STAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          sed -i "/<\/body>/i\    <p>Updated by ${ROLE} (${ACTOR}) on ${STAMP}</p>" index.html
+
+      # Step 3: Append a log entry to README.md
+      - name: Update README
+        env:
+          ACTOR: ${{ github.actor }}
+        run: |
+          STAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          COMMIT=$(git rev-parse --short HEAD)
+          echo "- Updated by ${ACTOR} on ${STAMP} [Commit: ${COMMIT}]" >> README.md
+
+      # Step 4: Commit the generated changes back to main
+      - name: Commit and Push Changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html README.md
+          git diff --cached --quiet && exit 0
+          git commit -m "Workflow: update HTML and README for ${{ github.actor }}"
+          git push origin HEAD:main
